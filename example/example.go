@@ -7,9 +7,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"strings"
 
-	prominentcolor ".."
+	"github.com/EdlinOrg/prominentcolor"
 )
 
 func loadImage(fileInput string) (image.Image, error) {
@@ -48,15 +49,27 @@ func processBatch(k int, bitarr []int, img image.Image) string {
 	resizeSize := uint(prominentcolor.DefaultSize)
 	bgmasks := prominentcolor.GetDefaultMasks()
 
+	cs := make(ColorSets, 0, len(bitarr))
+
 	for i := 0; i < len(bitarr); i++ {
 		res, err := prominentcolor.KmeansWithAll(k, img, bitarr[i], resizeSize, bgmasks)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		buff.WriteString(outputTitle(prefix + bitInfo(bitarr[i])))
+
+		// add to collection
+		set := NewColorSet(res, bitarr[i])
+		cs = append(cs, set)
+
+		buff.WriteString(outputTitle(prefix + bitInfo(bitarr[i]) + fmt.Sprintf(" (distance: %0.0f)", set.TotalDistance())))
 		buff.WriteString(outputColorRange(res))
 	}
+
+	sort.Sort(sort.Reverse(cs))
+	bestSet := cs[0]
+	buff.WriteString(outputTitle("FINAL: " + prefix + bestSet.GetParamsString() + fmt.Sprintf(" (distance: %0.0f)", bestSet.TotalDistance())))
+	buff.WriteString(outputColorRange(bestSet.GetSet()))
 
 	return buff.String()
 }
@@ -113,6 +126,7 @@ func main() {
 		// Define the differents sets of params
 		kk := []int{
 			prominentcolor.ArgumentAverageMean | prominentcolor.ArgumentNoCropping,
+			prominentcolor.ArgumentAverageMean,
 			prominentcolor.ArgumentNoCropping,
 			prominentcolor.ArgumentDefault,
 		}
